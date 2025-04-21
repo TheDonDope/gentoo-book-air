@@ -1,47 +1,31 @@
 # Gentoo Linux Installation Guide (Systemd) for Mid‑2013 MacBook Air
 
-This `README.md` serves both as a step-by-step installation guide **and** your Git history log. After each major phase, you’ll commit your changes with a short summary and a detailed long message listing the exact commands you ran.
+This `README.md` serves as a step-by-step installation guide for Gentoo Linux on a mid-2013 MacBook Air, using systemd as the init system. The installation process is tracked using Git, allowing you to review changes and commands executed during the setup.
+This guide assumes you have a live USB with the Gentoo installation media and an USB network adapter driver source available. The installation will be done in a `chroot` environment.
 
 > **Assumptions:**
 > - You have a Gentoo stage3 archive at `/stage3/stage3-*.tar.xz` on your live USB.
-> - You have the UGREEN USB network adapter driver sources under `/drivers/usbnet`.
+> - You have a portage snapshot at `/portage/portage-*.tar.xz` on your live USB.
 > - You’ve backed up all data and are ready for a full disk wipe.
+
+```bash
+USB/
+├── stage3/
+│   └── stage3-*.tar.xz
+└── portage/
+    └── portage-latest.tar.xz
+```
 
 ---
 
-## 1. Initialize Git Repository
+## 1. Boot Live USB
 
+1. Boot your MacBook Air from the Gentoo live USB. (Hold `Option` key during boot and select the USB drive.)
+2. Connect to the internet using the USB network adapter.
+3. Open a terminal.
+4. Switch to root user:
 ```bash
-cd /
-# Create .gitignore before first commit
-cat << 'EOF' > .gitignore
-# Virtual/pseudo filesystems
-/proc
-/sys
-/dev
-/run
-
-# Transient storage
-/tmp
-/var/tmp
-/mnt
-
-# Logs, caches, repos
-/var/log
-/var/cache
-/var/db/repos
-/usr/portage
-
-# Optional swapfile
-/swapfile
-EOF
-
-# Initialize Git
-git init
-
-# First commit: empty root with .gitignore
-git add .gitignore
-git commit -m "Initialize repository and .gitignore"
+sudo su -
 ```
 
 ---
@@ -60,67 +44,101 @@ parted $DRIVE -- mkpart primary linux-swap 513MiB 4609MiB
 parted $DRIVE -- mkpart primary ext4 4609MiB 100%
 
 # Format partitions
-mkfs.vfat -F32 ${DRIVE}1
+mkfs.vfat -F 32 ${DRIVE}1
 mkswap ${DRIVE}2
 mkfs.ext4 ${DRIVE}3
 ```
 
-```bash
-git add -A
-git commit \
-  -m "Partition and format SSD" \
-  -m $'Commands run:\n  parted /dev/sda -- mklabel gpt\n  parted /dev/sda -- mkpart ESP fat32 1MiB 513MiB\n  parted /dev/sda -- set 1 boot on\n  parted /dev/sda -- mkpart primary linux-swap 513MiB 4609MiB\n  parted /dev/sda -- mkpart primary ext4 4609MiB 100%\n  mkfs.vfat -F32 /dev/sda1\n  mkswap /dev/sda2\n  mkfs.ext4 /dev/sda3'
-```
-
 ---
 
-## 3. Mount & Extract Stage3
+## 3. Mount Partitions
 
 ```bash
 mount /dev/sda3 /mnt/gentoo
 mkdir -p /mnt/gentoo/boot/efi
 mount /dev/sda1 /mnt/gentoo/boot/efi
 swapon /dev/sda2
-
-# Extract stage3 archive
-cd /mnt/gentoo
-tar xpvf /stage3/stage3-*.tar.xz --xattrs-include='*.*' --numeric-owner
-```
-
-```bash
-git add -A
-git commit \
-  -m "Extract stage3 to /mnt/gentoo and mount filesystems" \
-  -m $'Commands run:\n  mount /dev/sda3 /mnt/gentoo\n  mkdir -p /mnt/gentoo/boot/efi\n  mount /dev/sda1 /mnt/gentoo/boot/efi\n  swapon /dev/sda2\n  tar xpvf /stage3/stage3-*.tar.xz --xattrs-include="*.*" --numeric-owner'
 ```
 
 ---
 
-## 4. Chroot into New Environment
+## 4. Mount USB Drive and Extract Stage3 & Portage
 
 ```bash
-# Prepare chroot
+# Mount USB drive
+mkdir -p /mnt/usb
+# Replace sdb1 with your USB drive
+mount /dev/sdb1 /mnt/usb
+
+# Extract stage3 archive
+cd /mnt/gentoo
+tar xpvf /mnt/usb/stage3/stage3-*.tar.xz --xattrs-include='*.*' --numeric-owner
+
+# Extract portage snapshot
+tar xpvf /mnt/usb/portage/portage-*.tar.xz -C /mnt/gentoo/usr
+```
+
+---
+
+## 5. Apply settings for make.conf
+
+- Open the file by running `nano /mnt/gentoo/etc/portage/make.conf` and modify the following lines:
+
+```bash
+# Update CFLAGS
+CFLAGS="-O2 -march=haswell -pipe"
+
+# Add Make options
+MAKEOPTS="-j3"
+
+# Optional: accept all licenses
+ACCEPT_LICENSE="*"
+```
+
+---
+
+## 6. Configure Gentoo ebuild repo & copy the DNS info
+
+```bash
+# Copy repo configuration
+mkdir -p /mnt/gentoo/etc/portage/repos.conf
+cp /mnt/gentoo/usr/share/portage/config/repos.conf /mnt/gentoo/etc/portage/repos.conf/gentoo.conf
+
+# Copy DNS info
 cp --dereference /etc/resolv.conf /mnt/gentoo/etc/
+```
+
+---
+
+## 7. Mount the filesystems
+
+```bash
 mount --types proc /proc /mnt/gentoo/proc
 mount --rbind /sys /mnt/gentoo/sys && mount --make-rslave /mnt/gentoo/sys
 mount --rbind /dev /mnt/gentoo/dev && mount --make-rslave /mnt/gentoo/dev
+```
 
+---
+
+## 8. Chroot into New Environment
+
+```bash
 # Enter chroot
 chroot /mnt/gentoo /bin/bash
 source /etc/profile
 export PS1="(chroot) $PS1"
 ```
 
-```bash
-git add -A
-git commit \
-  -m "Enter chroot and mount virtual filesystems" \
-  -m $'Commands run:\n  cp --dereference /etc/resolv.conf /mnt/gentoo/etc/\n  mount --types proc /proc /mnt/gentoo/proc\n  mount --rbind /sys /mnt/gentoo/sys && mount --make-rslave /mnt/gentoo/sys\n  mount --rbind /dev /mnt/gentoo/dev && mount --make-rslave /mnt/gentoo/dev\n  chroot /mnt/gentoo /bin/bash\n  source /etc/profile\n  export PS1="(chroot) $PS1"'
-```
-
 ---
 
-## 5. Configure Base System
+## 9. Update Portage
+
+```bash
+# Update Portage tree
+emerge-webrsync
+```
+
+## 10. Configure Base System
 
 ```bash
 # Timezone & locale
@@ -129,18 +147,14 @@ emerge --config sys-libs/timezone-data
 
 echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
 locale-gen
-esseselect locale set en_US.utf8
-env-update && source /etc/profile
-
-# Portage settings: /etc/portage/make.conf
-cat << 'EOF' > /etc/portage/make.conf
-CFLAGS="-O2 -march=haswell -pipe"
-MAKEOPTS="-j3"
-USE="systemd elogind wifi bluetooth alsa"
-EOF
+eselect locale set en_US.utf8
+env-update && source /etc/profile && export PS1="(chroot) ${PS1}"
 
 # Hostname
-echo "macair" > /etc/hostname
+echo "gentoo-book-air" > /etc/hostname
+
+# Set root password
+passwd
 
 # fstab
 cat << 'EOF' > /etc/fstab
@@ -148,64 +162,89 @@ cat << 'EOF' > /etc/fstab
 /dev/sda2   none    swap    sw               0 0
 /dev/sda1   /boot/efi vfat  umask=0077      0 2
 EOF
-```  
-```bash
-git add -A
-git commit \
-  -m "Configure timezone, locale, make.conf, hostname, fstab" \
-  -m $'Commands run:\n  echo "Europe/Berlin" > /etc/timezone\n  emerge --config sys-libs/timezone-data\n  echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen\n  locale-gen\n  eselect locale set en_US.utf8\n  env-update && source /etc/profile\n  cat << EOF > /etc/portage/make.conf ... EOF\n  echo "macair" > /etc/hostname\n  cat << EOF > /etc/fstab ... EOF'
 ```
 
 ---
 
-## 6. Kernel & Modules
+## 11. Configure Kernel
 
 ```bash
 # Install sources
 emerge --ask sys-kernel/gentoo-sources
-\# Configure kernel
-cd /usr/src/linux
+# Configure kernel
+cd /usr/src/linux-6.12.21-gentoo
+make mrproper
+make defconfig
 make menuconfig
-# ...enable EFI, Intel i915, HDA, USB, FAT, etc.
+```
+Select the following options:
+
+### CPU & Architecture
+
+- Processor type and features → Processor family → Core 2/newer Xeon (or Haswell)
+- Enable EFI stub support (CONFIG_EFI_STUB)
+- EFI Variable Support via sysfs (CONFIG_EFI_VARS)
+
+### Intel Graphics (iGPU)
+
+- Device Drivers → Graphics support:
+  - Direct Rendering Manager (XFree86 4.1.0 and higher DRI support) → Intel 8xx/9xx/G3x/G4x/HD Graphics
+
+### Audio (HDA)
+
+- Device Drivers → Sound card support → Advanced Linux Sound Architecture:
+  - PCI sound devices → HD-Audio → built-in
+
+### Networking (Wi-Fi, Ethernet)
+
+- Device Drivers -> Network device support -> Wireless LAN:
+  - Broadcom FullMAC WLAN driver → brcmsmac or brcmfmac
+  - Or use net-firmware/broadcom-sta (non-free) and disable conflicting drivers (b43, ssb, bcma)
+- Device Drivers -> Network device support -> USB Network Adapters:
+  - USB NIC: make sure CDC Ethernet support and Realtek RTL8152/RTL8153 USB driver are enabled under USB Network Adapters
+
+### Power Management
+
+- Power management and ACPI options -> ACPI Support:
+  - Everything enabled (AC, Battery, Fan, Thermal Zone, Processor)
+- Intel P-state driver
+- Intel Smart Sound Technology (optional)
+
+### Storage
+
+- Device Drivers → Serial ATA and Parallel ATA drivers:
+  - AHCI SATA support → built-in
+- File systems:
+  - ext4 (built-in)
+  - vfat, msdos → for EFI partition
+  - EFI Variables File System (under Firmware Drivers) → for GRUB/systemd to work properly
+
+### Input & USB
+
+- Device Drivers → USB Support:
+  - EHCI, XHCI (USB 3.0), OHCI → all needed
+- HID support → Apple devices
+- MacBook Pro / Air Keyboard support (under HID or Apple modules)
+- Multitouch / Synaptics or Apple Magic Trackpad drivers
+
+### Security (Optional)
+- Enable TPM support → for full disk encryption with LUKS later
+
+---
+
+## 12. Compile Kernel & Modules
+
+```bash
 
 # Compile & install
 make -j3
 make modules_install
 cp arch/x86/boot/bzImage /boot/kernel-$(make kernelversion)
-```  
-```bash
-git add -A
-git commit \
-  -m "Install and compile kernel" \
-  -m $'Commands run:\n  emerge --ask sys-kernel/gentoo-sources\n  cd /usr/src/linux\n  make menuconfig\n  make -j3\n  make modules_install\n  cp arch/x86/boot/bzImage /boot/kernel-$(make kernelversion)'
 ```
 
 ---
 
-## 7. Build & Install UGREEN USB Network Driver
-
-```bash
-# Ensure build tools and headers
-emerge --ask sys-devel/gcc sys-devel/make sys-devel/binutils sys-kernel/linux-headers
-
-# The driver sources live at /drivers/usbnet
-cd /drivers/usbnet
-make
-make install
-modprobe <driver_name>
-\# Auto-load at boot
-echo "<driver_name>" > /etc/modules-load.d/ugreen.conf
-```  
-```bash
-git add -A
-git commit \
-  -m "Build and install UGREEN USB Ethernet driver" \
-  -m $'Commands run:\n  emerge --ask sys-devel/gcc sys-devel/make sys-devel/binutils sys-kernel/linux-headers\n  cd /drivers/usbnet\n  make\n  make install\n  modprobe <driver_name>\n  echo "<driver_name>" > /etc/modules-load.d/ugreen.conf'
-```
-
----
-
-## 8. EFI Bootloader & Systemd Setup
+## 13. EFI Bootloader & Systemd Setup
 
 ```bash
 # Install GRUB
@@ -223,46 +262,58 @@ grub-mkconfig -o /boot/grub/grub.cfg
 
 # Switch to systemd profile
 eselect profile list
-eselect profile set <number>  # choose systemd
-env-update && source /etc/profile
+# Set systemd profile
+# (22 or the number corresponding to systemd)
+eselect profile set 22
+env-update && source /etc/profile && export PS1="(chroot) ${PS1}"
 emerge --ask sys-apps/systemd
-```  
-```bash
-git add -A
-git commit \
-  -m "Install GRUB EFI and switch to systemd" \
-  -m $'Commands run:\n  emerge --ask sys-boot/grub:2\n  cat << EOF > /etc/default/grub ... EOF\n  grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Gentoo\n  grub-mkconfig -o /boot/grub/grub.cfg\n  eselect profile set <number>\n  env-update && source /etc/profile\n  emerge --ask sys-apps/systemd'
+# Update @world set
+emerge --ask --verbose --update --deep --newuse @world
 ```
 
 ---
 
-## 9. Enable Services & Finalize
+## 14. Enable Services & Finalize
 
 ```bash
 # Enable network & essentials
-emerge --ask net-wireless/wpa_supplicant net-firmware/broadcom-sta net-misc/dhcpcd
-rc-update add dhcpcd default  # if still using dhcpcd
-
+emerge --ask net-wireless/wpa_supplicant net-wireless/broadcom-sta net-misc/dhcpcd
 systemctl enable systemd-networkd
 systemctl enable systemd-resolved
 systemctl enable sshd
-```
 
-```bash
-git add -A
-git commit \
-  -m "Enable network & essential services" \
-  -m $'Commands run:
-  emerge --ask net-wireless/wpa_supplicant net-firmware/broadcom-sta net-misc/dhcpcd
-  rc-update add dhcpcd default
-  systemctl enable systemd-networkd
-  systemctl enable systemd-resolved
-  systemctl enable sshd'
+# systemd-networkd config
+cat << 'EOF' > /etc/systemd/network/25-wireless.network
+[Match]
+Name=wlan0
+
+[Network]
+DHCP=yes
+
+[DHCP]
+UseDNS=yes
+EOF
+
+# WPA Supplicant config
+mkdir -p /etc/wpa_supplicant
+cat << 'EOF' > /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+ctrl_interface=/run/wpa_supplicant
+ctrl_interface_group=wheel
+update_config=1
+
+network={
+    ssid="YourNetworkSSID"
+    psk="yourpassword"
+}
+EOF
+chmod 600 /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+
+systemctl enable wpa_supplicant@wlan0.service
 ```
 
 ---
 
-## 10. Exit and Reboot
+## 15. Exit and Reboot
 
 ```bash
 exit
@@ -271,20 +322,3 @@ umount -l /mnt/gentoo/{boot/efi,dev,sys,proc}
 swapoff -a
 reboot
 ```
-
-```bash
-git add -A
-git commit \
-  -m "Finalize install and reboot" \
-  -m $'Commands run:
-  exit chroot
-  umount -l /mnt/gentoo/{boot/efi,dev,sys,proc}
-  swapoff -a
-  reboot'
-```
-
----
-
-**Congratulations!** You now have a fully tracked, Git-logged Gentoo installation. Use `git log --stat` to review your history or `git commit --amend` to fix any mistakes. Enjoy your custom Gentoo system!
-
-
