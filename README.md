@@ -175,60 +175,20 @@ emerge --ask sys-kernel/gentoo-sources
 cd /usr/src/linux-6.12.21-gentoo
 make mrproper
 make defconfig
+```
+
+To check for the completeness of the generated `.config` file, run:
+
+```bash
+./check-kernel-drivers.sh /mnt/gentoo/usr/src/linux-6.12.21-gentoo/.config
+```
+
+The output will tell you which drivers / modules to search for in the kernel configuration. You can use `make menuconfig` to search for the drivers and enable them.
+
+```bash
+# Enable drivers
 make menuconfig
 ```
-Select the following options:
-
-### CPU & Architecture
-
-- Processor type and features → Processor family → Core 2/newer Xeon (or Haswell)
-- Enable EFI stub support (CONFIG_EFI_STUB)
-- EFI Variable Support via sysfs (CONFIG_EFI_VARS)
-
-### Intel Graphics (iGPU)
-
-- Device Drivers → Graphics support:
-  - Direct Rendering Manager (XFree86 4.1.0 and higher DRI support) → Intel 8xx/9xx/G3x/G4x/HD Graphics
-
-### Audio (HDA)
-
-- Device Drivers → Sound card support → Advanced Linux Sound Architecture:
-  - PCI sound devices → HD-Audio → built-in
-
-### Networking (Wi-Fi, Ethernet)
-
-- Device Drivers -> Network device support -> Wireless LAN:
-  - Broadcom FullMAC WLAN driver → brcmsmac or brcmfmac
-  - Or use net-firmware/broadcom-sta (non-free) and disable conflicting drivers (b43, ssb, bcma)
-- Device Drivers -> Network device support -> USB Network Adapters:
-  - USB NIC: make sure CDC Ethernet support and Realtek RTL8152/RTL8153 USB driver are enabled under USB Network Adapters
-
-### Power Management
-
-- Power management and ACPI options -> ACPI Support:
-  - Everything enabled (AC, Battery, Fan, Thermal Zone, Processor)
-- Intel P-state driver
-- Intel Smart Sound Technology (optional)
-
-### Storage
-
-- Device Drivers → Serial ATA and Parallel ATA drivers:
-  - AHCI SATA support → built-in
-- File systems:
-  - ext4 (built-in)
-  - vfat, msdos → for EFI partition
-  - EFI Variables File System (under Firmware Drivers) → for GRUB/systemd to work properly
-
-### Input & USB
-
-- Device Drivers → USB Support:
-  - EHCI, XHCI (USB 3.0), OHCI → all needed
-- HID support → Apple devices
-- MacBook Pro / Air Keyboard support (under HID or Apple modules)
-- Multitouch / Synaptics or Apple Magic Trackpad drivers
-
-### Security (Optional)
-- Enable TPM support → for full disk encryption with LUKS later
 
 ---
 
@@ -254,7 +214,9 @@ emerge --ask sys-boot/grub:2
 cat << 'EOF' > /etc/default/grub
 GRUB_DEFAULT=0
 GRUB_TIMEOUT=5
-GRUB_CMDLINE_LINUX="root=/dev/sda3 quiet"
+GRUB_DISTRIBUTOR="Gentoo"
+GRUB_CMDLINE_LINUX="root=/dev/sda3"
+GRUB_DISABLE_RECOVERY=true
 EOF
 
 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Gentoo
