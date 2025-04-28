@@ -9,13 +9,13 @@ This guide assumes you have a live USB with the Gentoo installation media and a 
 
 ```bash
 USB/
-├── stage3/
-└── └── stage3-*.tar.xz
+└── stage3/
+    └── stage3-*.tar.xz
 ```
 
 ---
 
-## 1. Boot Live USB
+## 0. Boot Live USB
 
 1. Boot from the Gentoo live USB (hold `Option` key during startup).
 2. Connect to the internet (use USB Ethernet adapter or follow [Gentoo WiFi docs](https://wiki.gentoo.org/wiki/Wifi)).
@@ -26,7 +26,9 @@ sudo su -
 
 ---
 
-## 2. Partition & Format Disk
+## 1. Partition Disk
+
+See: [./usr/local/bin/01-partition-disk.sh](./usr/local/bin/01-partition-disk.sh)
 
 ```bash
 # Identify target drive (e.g., /dev/sda), confirm with `lsblk`
@@ -47,7 +49,9 @@ mkfs.ext4 ${DRIVE}3
 
 ---
 
-## 3. Mount Partitions
+## 2. Mount Partitions
+
+See: [./usr/local/bin/02-mount-partitions.sh](./usr/local/bin/02-mount-partitions.sh)
 
 ```bash
 mount /dev/sda3 /mnt/gentoo
@@ -58,7 +62,9 @@ swapon /dev/sda2
 
 ---
 
-## 4. Mount USB Drive and Extract Stage3
+## 3. Extract Stage3
+
+See: [./usr/local/bin/03-extract-stage3.sh](./usr/local/bin/03-extract-stage3.sh)
 
 ```bash
 mkdir -p /mnt/usb
@@ -66,15 +72,25 @@ mkdir -p /mnt/usb
 mount /dev/sdb1 /mnt/usb
 
 # Extract stage3 archive
-cd /mnt/gentoo
-tar xpvf /mnt/usb/stage3/stage3-*.tar.xz --xattrs-include='*.*' --numeric-owner
+tar xpvf /mnt/usb/stage3/stage3-*.tar.xz --xattrs-include='*.*' --numeric-owner -C /mnt/gentoo
+
+# tar options:
+# `x`` extract, instructs tar to extract the contents of the archive.
+# `p`` preserve permissions.
+# `v`` verbose output.
+# `f`` file, provides tar with the name of the input archive.
+# `--xattrs-include='*.*'`` Preserves extended attributes in all namespaces stored in the archive.
+# `--numeric-owner`` Ensure that the user and group IDs of files being extracted from the tarball remain the same as Gentoo's release engineering team intended (even if adventurous users are not using official Gentoo live environments for the installation process).
+# `-C /mnt/gentoo`` Extract files to the root partition regardless of the current directory.
 ```
 
 ---
 
-## 5. Configure make.conf
+## 4. Configure Portage
 
-Edit `/mnt/gentoo/etc/portage/make.conf`:
+See: [./usr/local/bin/04-configure-portage.sh](./usr/local/bin/04-configure-portage.sh)
+
+Run `nano /mnt/gentoo/etc/portage/make.conf`:
 
 ```bash
 CFLAGS="-O2 -march=haswell -pipe"
@@ -84,7 +100,9 @@ ACCEPT_LICENSE="*"
 
 ---
 
-## 6. Configure Repos and DNS
+## 5. Configure Repos and DNS
+
+See: [./usr/local/bin/05-configure-repos-dns.sh](./usr/local/bin/05-configure-repos-dns.sh)
 
 ```bash
 mkdir -p /mnt/gentoo/etc/portage/repos.conf
@@ -94,7 +112,9 @@ cp --dereference /etc/resolv.conf /mnt/gentoo/etc/
 
 ---
 
-## 7. Mount Filesystems
+## 6. Mount Filesystems
+
+See: [./usr/local/bin/06-mount-filesystems.sh](./usr/local/bin/06-mount-filesystems.sh)
 
 ```bash
 mount --types proc /proc /mnt/gentoo/proc
@@ -104,7 +124,9 @@ mount --rbind /dev /mnt/gentoo/dev && mount --make-rslave /mnt/gentoo/dev
 
 ---
 
-## 8. Chroot into New Environment
+## 7. Chroot into New Environment
+
+See: [./usr/local/bin/07-chroot-init.sh](./usr/local/bin/07-chroot-init.sh)
 
 ```bash
 chroot /mnt/gentoo /bin/bash
@@ -114,13 +136,17 @@ export PS1="(chroot) $PS1"
 
 ---
 
-## 9. Update Portage
+## 8. Update Portage
+
+See: [./usr/local/bin/08-update-portage.sh](./usr/local/bin/08-update-portage.sh)
 
 ```bash
 emerge-webrsync
 ```
 
-## 10. Configure Base System
+## 9. Configure Base System
+
+See: [./usr/local/bin/09-configure-base-system.sh](./usr/local/bin/09-configure-base-system.sh)
 
 ```bash
 # Timezone & locale
@@ -131,9 +157,8 @@ locale-gen
 eselect locale set en_US.utf8
 env-update && source /etc/profile && export PS1="(chroot) ${PS1}"
 
-# Hostname and root password
+# Hostname
 echo "gentoo-book-air" > /etc/hostname
-passwd
 
 # Use UUIDs in /etc/fstab
 ROOT_UUID=$(blkid -s UUID -o value /dev/sda3)
@@ -143,11 +168,16 @@ UUID=$ROOT_UUID   /       ext4    defaults,noatime 0 1
 /dev/sda2         none    swap    sw               0 0
 UUID=$EFI_UUID    /boot/efi vfat  umask=0077      0 2
 EOF
+
+# Set root password
+passwd
 ```
 
 ---
 
-## 11. Install Kernel with Genkernel
+## 10. Install Kernel
+
+See: [./usr/local/bin/10-install-kernel.sh](./usr/local/bin/10-install-kernel.sh)
 
 ```bash
 # Install kernel sources and genkernel
@@ -225,7 +255,9 @@ Device Drivers
 
 ---
 
-## 12. Configure GRUB with UUIDs
+## 11. Configure GRUB
+
+See: [./usr/local/bin/11-configure-grub.sh](./usr/local/bin/11-configure-grub.sh)
 
 ```bash
 emerge --ask sys-boot/grub:2
@@ -249,7 +281,9 @@ grub-mkconfig -o /boot/grub/grub.cfg
 
 ---
 
-## 13. Set Systemd Profile
+## 12. Set Systemd Profile
+
+See: [./usr/local/bin/12-set-systemd-profile.sh](./usr/local/bin/12-set-systemd-profile.sh)
 
 ```bash
 # Choose systemd profile (e.g., 22)
@@ -261,7 +295,6 @@ sys-apps/systemd bash-completion
 EOF
 emerge --ask sys-apps/systemd sys-kernel/linux-firmware app-shells/bash-completion
 
-eselect bashcomp enable systemd
 eselect bashcomp enable systemctl
 eselect bashcomp enable networkctl
 eselect bashcomp enable journalctl
@@ -279,24 +312,24 @@ fi
 EOF
 
 emerge --ask --verbose --update --deep --newuse @world
-
-
 ```
 
 ---
 
-## 14. Enable Services
+## 13. Configure Systemd Services
+
+See: [./usr/local/bin/13-configure-systemd-services.sh](./usr/local/bin/13-configure-systemd-services.sh)
 
 ```bash
 # Install WiFi drivers
-mkdir -p /etc/portage/package.accept_keywords
-echo "net-wireless/broadcom-sta ~amd64" >> /etc/portage/package.accept_keywords/broadcom-sta
-emerge --ask net-wireless/broadcom-sta
+#mkdir -p /etc/portage/package.accept_keywords
+#echo "net-wireless/broadcom-sta ~amd64" >> /etc/portage/package.accept_keywords/broadcom-sta
+#emerge --ask net-wireless/broadcom-sta
 # Build kernel module
-emerge --config broadcom-sta
+#emerge --config broadcom-sta
 
 # Enable network & essentials
-emerge --ask net-wireless/wpa_supplicant
+#emerge --ask net-wireless/wpa_supplicant
 
 # Configure network
 cat << EOF > /etc/systemd/network/20-wired-static.network
@@ -317,54 +350,62 @@ IPv6AcceptRA=no
 LinkLocalAddressing=no
 EOF
 
-cat << EOF > /etc/systemd/network/25-wireless.network
-[Match]
-Name=wlan0
+#cat << EOF > /etc/systemd/network/25-wireless.network
+#[Match]
+#Name=wlan0
 
-[Network]
-DHCP=yes
+#[Network]
+#DHCP=yes
 
-[DHCP]
-UseDNS=yes
-EOF
+#[DHCP]
+#UseDNS=yes
+#EOF
 
 # Configure WiFi
-mkdir -p /etc/wpa_supplicant
-cat << EOF > /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
-ctrl_interface=/run/wpa_supplicant
-ctrl_interface_group=wheel
-update_config=1
+#mkdir -p /etc/wpa_supplicant
+#cat << EOF > /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+#ctrl_interface=/run/wpa_supplicant
+#ctrl_interface_group=wheel
+#update_config=1
 
-network={
-    ssid="YourNetworkSSID"
-    psk="yourpassword"
-}
-EOF
-chmod 600 /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+#network={
+#    ssid="YourNetworkSSID"
+#    psk="yourpassword"
+#}
+#EOF
+#chmod 600 /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
 
 systemctl enable systemd-networkd systemd-resolved
-systemctl enable wpa_supplicant@wlan0.service
+#systemctl enable wpa_supplicant@wlan0.service
 
 # Configure SSH
 cat << EOF > /etc/ssh/sshd_config
 PermitRootLogin yes
 EOF
 
-# On your Client Machine: Generate (if necessary) SSH keys
-ssh-keygen -t ed25519
-ssh-copy-id -i ~/.ssh/id_ed25519.pub root@<your_gentoo_ip>
-# On your Gentoo Machine: Reconfigure SSH to reject passwod logins and only accept keys
-cat << EOF > /etc/ssh/sshd_config
-PermitRootLogin prohibit-password
-EOF
-
 # Enable SSH
 systemctl enable sshd
 ```
 
+- On your Client Machine: Generate (if necessary) SSH keys
+```bash
+ssh-keygen -t ed25519
+ssh-copy-id -i ~/.ssh/id_ed25519.pub root@<your_gentoo_ip>
+```
+- On your Gentoo Machine: Reconfigure SSH to reject passwod logins and only accept keys
+```bash
+cat << EOF > /etc/ssh/sshd_config
+PermitRootLogin prohibit-password
+EOF
+
+systemctl restart sshd
+```
+
 ---
 
-## 15. Exit and Reboot
+## 14. Finalize and Reboot
+
+See: [./usr/local/bin/14-finalize-and-reboot.sh](./usr/local/bin/14-finalize-and-reboot.sh)
 
 ```bash
 exit
