@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-mkdir -p /mnt/usb
+mkdir --parents /mnt/usb
 # Replace `sdb1` with your USB device
 mount /dev/sdb1 /mnt/usb
 

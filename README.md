@@ -26,48 +26,86 @@ sudo su -
 
 ---
 
-## 1. Partition Disk
+## 1. Partitioning the disk with GPT for UEFI
 
-See: [./usr/local/bin/01-partition-disk.sh](./usr/local/bin/01-partition-disk.sh)
+- References:
+  - [Gentoo Handbook:AMD64 > Installation > Disks](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Disks#Partitioning_the_disk_with_GPT_for_UEFI)
+  - [./usr/local/bin/01-partitioning-the-disk-with-gpt-for-uefi.sh](./usr/local/bin/01-partitioning-the-disk-with-gpt-for-uefi.sh)
 
 ```bash
 # Identify target drive (e.g., /dev/sda), confirm with `lsblk`
 DRIVE=/dev/sda
 
-# Create GPT and partitions
-parted $DRIVE -- mklabel gpt
-parted $DRIVE -- mkpart ESP fat32 1MiB 513MiB
-parted $DRIVE -- set 1 boot on
-parted $DRIVE -- mkpart primary linux-swap 513MiB 4609MiB
-parted $DRIVE -- mkpart primary ext4 4609MiB 100%
+# Format disk and create partitions
+fdisk ${DRIVE}
+
+# Press `p` to print the current partition table
+
+# Creating the EFI System Partition (ESP)
+
+# Press `g` to create a new empty GPT partition table
+# Press `n` to create a new partition
+# Press `1` for the first partition
+# Press `Enter` to accept the default first sector
+# Press `+1G` for the size of the EFI partition
+# Press `Y` to confirm removing the existing partition
+# Press `t` to mark the partition as an EFI system partition
+# Press `1` to select the EFI partition type
+
+# Creating the swap partition
+
+# Press `n` to create a new partition
+# Press `2` for the second partition
+# Press `Enter` to accept the default first sector
+# Press `+4G` for the size of the swap partition (Size of your RAM)
+# Press `t` to change the partition type
+# Press `2` to select the swap partition
+# Press `19` to set the partition type to Linux swap partition
+
+# Creating the root partition
+# Press `n` to create a new partition
+# Press `3` for the third partition
+# Press `Enter` to accept the default first sector
+# Press `Enter` to accept the default last sector (use the rest of the disk)
+# Press `t` to change the partition type
+# Press `3` to select the root partition
+# Press `23` to set the partition type to Linux filesystem (Linux Root (x86-64)
+
+# Press `p` to print the partition table again to verify
+# Press `w` to write the changes and exit fdisk
 
 # Format partitions
 mkfs.vfat -F 32 ${DRIVE}1
 mkswap ${DRIVE}2
 mkfs.ext4 ${DRIVE}3
+
+# Activate swap
+swapon ${DRIVE}2
 ```
 
 ---
 
-## 2. Mount Partitions
+## 2. Mounting the root partition
 
-See: [./usr/local/bin/02-mount-partitions.sh](./usr/local/bin/02-mount-partitions.sh)
+- References:
+  - [Gentoo Handbook:AMD64 > Installation > Disks](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Disks#Mounting_the_root_partition)
+  - [./usr/local/bin/02-mounting-the-root-partition.sh](./usr/local/bin/02-mounting-the-root-partition.sh)
 
 ```bash
 mount /dev/sda3 /mnt/gentoo
-mkdir -p /mnt/gentoo/boot/efi
-mount /dev/sda1 /mnt/gentoo/boot/efi
-swapon /dev/sda2
+mkdir --parents /mnt/gentoo/efi
 ```
 
 ---
 
-## 3. Extract Stage3
+## 3. Installing a stage file
 
-See: [./usr/local/bin/03-extract-stage3.sh](./usr/local/bin/03-extract-stage3.sh)
+- References:
+  - [Gentoo Handbook:AMD64 > Installation > Stage](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Stage#Installing_a_stage_file)
+  - [./usr/local/bin/03-installing-a-stage-file.sh](./usr/local/bin/03-installing-a-stage-file.sh)
 
 ```bash
-mkdir -p /mnt/usb
+mkdir --parents /mnt/usb
 # Replace `sdb1` with your USB device
 mount /dev/sdb1 /mnt/usb
 
@@ -86,47 +124,57 @@ tar xpvf /mnt/usb/stage3/stage3-*.tar.xz --xattrs-include='*.*' --numeric-owner 
 
 ---
 
-## 4. Configure Portage
+## 4. Configuring compile options
 
-See: [./usr/local/bin/04-configure-portage.sh](./usr/local/bin/04-configure-portage.sh)
+- References:
+  - [Gentoo Handbook:AMD64 > Installation > Stage](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Stage#Configuring_compile_options)
+  - [./usr/local/bin/04-configuring-compile-options.sh](./usr/local/bin/04-configuring-compile-options.sh)
 
 Run `nano /mnt/gentoo/etc/portage/make.conf`:
 
 ```bash
-CFLAGS="-O2 -march=haswell -pipe"
+COMMON_FLAGS="-march=haswell -O2 -pipe"
 MAKEOPTS="-j3"
 ACCEPT_LICENSE="*"
 ```
 
 ---
 
-## 5. Configure Repos and DNS
+## 5. Copy DNS info
 
-See: [./usr/local/bin/05-configure-repos-dns.sh](./usr/local/bin/05-configure-repos-dns.sh)
+- References:
+  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Copy_DNS_info)
+  - [./usr/local/bin/05-copy-dns-info.sh](./usr/local/bin/05-copy-dns-info.sh)
 
 ```bash
-mkdir -p /mnt/gentoo/etc/portage/repos.conf
-cp /mnt/gentoo/usr/share/portage/config/repos.conf /mnt/gentoo/etc/portage/repos.conf/gentoo.conf
 cp --dereference /etc/resolv.conf /mnt/gentoo/etc/
 ```
 
 ---
 
-## 6. Mount Filesystems
+## 6. Mounting the necessary filesystems
 
-See: [./usr/local/bin/06-mount-filesystems.sh](./usr/local/bin/06-mount-filesystems.sh)
+- References:
+  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Mounting_the_necessary_filesystems)
+  - [./usr/local/bin/06-mounting-the-necessary-filesystems.sh](./usr/local/bin/06-mounting-the-necessary-filesystems.sh)
 
 ```bash
 mount --types proc /proc /mnt/gentoo/proc
-mount --rbind /sys /mnt/gentoo/sys && mount --make-rslave /mnt/gentoo/sys
-mount --rbind /dev /mnt/gentoo/dev && mount --make-rslave /mnt/gentoo/dev
+mount --rbind /sys /mnt/gentoo/sys
+mount --make-rslave /mnt/gentoo/sys
+mount --rbind /dev /mnt/gentoo/dev
+mount --make-rslave /mnt/gentoo/dev
+mount --bind /run /mnt/gentoo/run
+mount --make-slave /mnt/gentoo/run
 ```
 
 ---
 
-## 7. Chroot into New Environment
+## 7. Entering the new environment
 
-See: [./usr/local/bin/07-chroot-init.sh](./usr/local/bin/07-chroot-init.sh)
+- References:
+  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Entering_the_new_environment)
+  - [./usr/local/bin/07-entering-the-new-environment.sh](./usr/local/bin/07-entering-the-new-environment.sh)
 
 ```bash
 chroot /mnt/gentoo /bin/bash
@@ -136,128 +184,125 @@ export PS1="(chroot) $PS1"
 
 ---
 
-## 8. Update Portage
+## 8. Preparing for a bootloader
 
-See: [./usr/local/bin/08-update-portage.sh](./usr/local/bin/08-update-portage.sh)
+- References:
+  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#UEFI_systems)
+  - [./usr/local/bin/08-preparing-for-a-bootloader.sh](./usr/local/bin/08-preparing-for-a-bootloader.sh)
+
+```bash
+mount /dev/sda1 /efi
+```
+
+## 9. Configuring Portage
+
+- References:
+  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Installing_a_Gentoo_ebuild_repository_snapshot_from_the_web)
+  - [./usr/local/bin/09-configuring-portage.sh](./usr/local/bin/09-configuring-portage.sh)
 
 ```bash
 emerge-webrsync
 ```
 
-## 9. Configure Base System
+## 10. Choosing the right profile
 
-See: [./usr/local/bin/09-configure-base-system.sh](./usr/local/bin/09-configure-base-system.sh)
+- References:
+  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Choosing_the_right_profile)
+  - [./usr/local/bin/10-choosing-the-right-profile.sh](./usr/local/bin/10-choosing-the-right-profile.sh)
+
+```bash
+eselect profile list
+eselect profile set 22
+emerge --ask --verbose --update --deep --changed-use @world
+emerge --ask --pretend --depclean
+emerge --ask --depclean
+```
+
+## 11. Configuring timezone and locales
+
+- References:
+  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Timezone)
+  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Configure_locales)
+  - [./usr/local/bin/11-configuring-timezone-and-locales.sh](./usr/local/bin/11-configuring-timezone-and-locales.sh)
 
 ```bash
 # Timezone & locale
-echo "Europe/Berlin" > /etc/timezone
-emerge --config sys-libs/timezone-data
-echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+ln -sf ../usr/share/zoneinfo/Europe/Berlin /etc/localtime
+cat << EOF > /etc/locale.gen
+en_US ISO-8859-1
+en_US.UTF-8 UTF-8
+de_DE ISO-8859-1
+de_DE.UTF-8 UTF-8
+EOF
 locale-gen
-eselect locale set en_US.utf8
+eselect locale list
+# Select en_US.UTF-8
+eselect locale set 9
 env-update && source /etc/profile && export PS1="(chroot) ${PS1}"
+```
 
-# Hostname
-echo "gentoo-book-air" > /etc/hostname
+## 12. Configuring the Linux kernel
 
-# Use UUIDs in /etc/fstab
-ROOT_UUID=$(blkid -s UUID -o value /dev/sda3)
-EFI_UUID=$(blkid -s UUID -o value /dev/sda1)
-cat << EOF > /etc/fstab
-UUID=$ROOT_UUID   /       ext4    defaults,noatime 0 1
-/dev/sda2         none    swap    sw               0 0
-UUID=$EFI_UUID    /boot/efi vfat  umask=0077      0 2
+- References:
+  - [Gentoo Handbook:AMD64 > Installation > Kernel](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#Suggested:_Linux_Firmware)
+  - [Gentoo Handbook:AMD64 > Installation > Kernel](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#systemd-boot)
+  - [Gentoo Handbook:AMD64 > Installation > Kernel](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#Initramfs)
+  - [./usr/local/bin/12-configuring-the-linux-kernel.sh](./usr/local/bin/12-configuring-the-linux-kernel.sh)
+
+```bash
+# Install linux-firmware
+emerge --ask sys-kernel/linux-firmware
+
+# Configure systemd-boot
+cat << EOF > /etc/portage/package.use/systemd
+sys-apps/systemd boot
+sys-kernel/installkernel systemd-boot
 EOF
 
-# Set root password
-passwd
+# Configure Initramfs with dracut
+cat << EOF > /etc/portage/package.use/installkernel
+sys-kernel/installkernel dracut
+EOF
+
+# Configure kernel command line
+cat << EOF > /etc/kernel/cmdline
+quiet splash
+EOF
+
+# Install systemd and installkernel
+emerge --ask sys-apps/systemd sys-kernel/installkernel
 ```
 
 ---
 
-## 10. Install Kernel
+## 13. Install Kernel
 
-See: [./usr/local/bin/10-install-kernel.sh](./usr/local/bin/10-install-kernel.sh)
-
-```bash
-# Install kernel sources and genkernel
-emerge --ask sys-kernel/gentoo-sources sys-kernel/genkernel
-
-# Set kernel symlink
-eselect kernel list
-# Replace "1" with your kernel index
-eselect kernel set 1
-# Verify symlink
-ls -l /usr/src/linux
-
-# Configure and compile kernel
-genkernel --menuconfig all
-```
-
-During `menuconfig`:
-
-1. WiFi (`CONFIG_BRCMFMAC`)
-
-Navigation path:
+- References:
+  - [Gentoo Handbook:AMD64 > Installation > Kernel](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#Installing_a_distribution_kernel)
+  - [./usr/local/bin/13-install-kernel.sh](./usr/local/bin/13-install-kernel.sh)
 
 ```bash
-Device Drivers
-  → Network device support
-    → Wireless LAN
-      → Broadcom devices
-        → <M> Broadcom FullMAC WLAN driver (BRCMFMAC)
-```
+# Install Gentoo distribution kernel
+emerge --ask sys-kernel/gentoo-kernel
 
-2. Intel GPU (`CONFIG_DRM_I915`)
+# Clean up
+emerge --depclean
 
-Navigation path:
+# Set `dist-kernel` USE-flag
+nano /etc/portage/make.conf
 
-```bash
-Device Drivers
-  → Graphics support
-    → <M> Direct Rendering Manager (XFree86 4.1.0 and higher)
-      → <M> Intel 8xx/9xx/G3x/G4x/HD Graphics
-```
+# Add `USE="dist-kernel"` line
 
-3. NVMe SSD (`CONFIG_NVME_CORE`)
-
-Navigation path:
-
-```bash
-Device Drivers
-  → NVME Support
-    → <*> NVM Express block device
-    → [*] NVMe multipath support
-    → [*] NVMe hardware monitoring
-```
-
-4. Trackpad (`CONFIG_INPUT_APPLE_IBRIDGE`)
-
-Navigation path:
-
-```bash
-Device Drivers
-  → Input device support
-    → Mice
-      → <M> Apple USB Touchpad support (INPUT_APPLE_IBRIDGE)
-      → <M> Apple USB BCM5974 Multitouch trackpad support (INPUT_APPLE_IBRIDGE)
-```
-
-5. Firmware Loading
-
-Navigation path:
-
-```bash
-Device Drivers
-  → Firmware Drivers
-    → -*- Export DMI identification via sysfs to userspace
+# Manually rebuild the initramfs
+emerge --ask @module-rebuild
+emerge --config sys-kernel/gentoo-kernel
 ```
 
 ---
 
-## 11. Configure GRUB
+## 14. Configure GRUB
 
-See: [./usr/local/bin/11-configure-grub.sh](./usr/local/bin/11-configure-grub.sh)
+See: [./usr/local/bin/14-configure-grub.sh](./usr/local/bin/14-configure-grub.sh)
 
 ```bash
 emerge --ask sys-boot/grub:2
@@ -281,9 +326,9 @@ grub-mkconfig -o /boot/grub/grub.cfg
 
 ---
 
-## 12. Set Systemd Profile
+## 15. Set Systemd Profile
 
-See: [./usr/local/bin/12-set-systemd-profile.sh](./usr/local/bin/12-set-systemd-profile.sh)
+See: [./usr/local/bin/15-set-systemd-profile.sh](./usr/local/bin/15-set-systemd-profile.sh)
 
 ```bash
 # Choose systemd profile (e.g., 22)
@@ -316,9 +361,9 @@ emerge --ask --verbose --update --deep --newuse @world
 
 ---
 
-## 13. Configure Systemd Services
+## 16. Configure Systemd Services
 
-See: [./usr/local/bin/13-configure-systemd-services.sh](./usr/local/bin/13-configure-systemd-services.sh)
+See: [./usr/local/bin/16-configure-systemd-services.sh](./usr/local/bin/16-configure-systemd-services.sh)
 
 ```bash
 # Install WiFi drivers
@@ -403,9 +448,9 @@ systemctl restart sshd
 
 ---
 
-## 14. Finalize and Reboot
+## 17. Finalize and Reboot
 
-See: [./usr/local/bin/14-finalize-and-reboot.sh](./usr/local/bin/14-finalize-and-reboot.sh)
+See: [./usr/local/bin/17-finalize-and-reboot.sh](./usr/local/bin/17-finalize-and-reboot.sh)
 
 ```bash
 exit
