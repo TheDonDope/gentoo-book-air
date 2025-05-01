@@ -1,6 +1,6 @@
-# Gentoo Linux Installation Guide (Systemd) for Mid‑2013 MacBook Air
+# Gentoo Linux Installation Guide for Mid 2013 MacBook Air
 
-This guide provides a streamlined installation process for Gentoo Linux on a mid-2013 MacBook Air, using `genkernel` for optimal hardware support and systemd as the init system.
+This guide provides a streamlined installation process for Gentoo Linux on a mid-2013 MacBook Air, using the [Gentoo Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64). It is tailored for users who are familiar with the command line and Linux installations.
 This guide assumes you have a live USB with the Gentoo installation media and a Gentoo stage3 archive on it. The installation will be done in a `chroot` environment.
 
 > **Assumptions:**
@@ -15,7 +15,77 @@ USB/
 
 ---
 
-## 0. Boot Live USB
+- [Gentoo Linux Installation Guide for Mid 2013 MacBook Air](#gentoo-linux-installation-guide-for-mid-2013-macbookair)
+  - [Boot Live USB](#boot-live-usb)
+  - [Preparing the disks](#preparing-the-disks)
+    - [Partitioning the disk with GPT for UEFI](#partitioning-the-disk-with-gpt-for-uefi)
+    - [Creating file systems](#creating-file-systems)
+    - [Mounting the root partition](#mounting-the-root-partition)
+  - [Installing the Gentoo installation files](#installing-the-gentoo-installation-files)
+    - [Mounting the USB drive](#mounting-the-usb-drive)
+    - [Installing a stage file](#installing-a-stage-file)
+    - [Configuring compile options](#configuring-compile-options)
+  - [Installing the Gentoo base system](#installing-the-gentoo-base-system)
+    - [Chrooting](#chrooting)
+      - [Copy DNS info](#copy-dns-info)
+      - [Mounting the necessary filesystems](#mounting-the-necessary-filesystems)
+      - [Entering the new environment](#entering-the-new-environment)
+      - [Preparing for a bootloader](#preparing-for-a-bootloader)
+    - [Configuring Portage](#configuring-portage)
+      - [Installing a Gentoo ebuild repository snapshot from the web](#installing-a-gentoo-ebuild-repository-snapshot-from-the-web)
+      - [Choosing the right profile](#choosing-the-right-profile)
+      - [Optional: Configuring the USE variable](#optional-configuring-the-use-variable)
+    - [Timezone](#timezone)
+    - [Configure locales](#configure-locales)
+      - [Locale generation](#locale-generation)
+      - [Locale selection](#locale-selection)
+  - [Configuring the Linux kernel](#configuring-the-linux-kernel)
+    - [Optional: Installing firmware and/or microcode](#optional-installing-firmware-andor-microcode)
+      - [Firmware](#firmware)
+    - [sys-kernel/installkernel](#sys-kernelinstallkernel)
+      - [Bootloader](#bootloader)
+        - [systemd-boot](#systemd-boot)
+    - [Kernel configuration and compilation](#kernel-configuration-and-compilation)
+      - [Distribution kernels](#distribution-kernels)
+        - [Run systemd initial setup](#run-systemd-initial-setup)
+        - [Installing a distribution kernel](#installing-a-distribution-kernel)
+        - [Upgrading and cleaning up](#upgrading-and-cleaning-up)
+  - [Configuring the system](#configuring-the-system)
+    - [Filesystem information](#filesystem-information)
+      - [Partition labels and UUIDs](#partition-labels-and-uuids)
+      - [Creating the fstab file](#creating-the-fstab-file)
+        - [UEFI systems](#uefi-systems)
+    - [Networking Information](#networking-information)
+      - [Hostname](#hostname)
+      - [Network](#network)
+      - [The hosts file](#the-hosts-file)
+    - [System information](#system-information)
+      - [Root password](#root-password)
+  - [Installing system tools](#installing-system-tools)
+    - [Optional: Remote shell access](#optional-remote-shell-access)
+      - [systemd](#systemd)
+    - [Optional: Shell completion](#optional-shell-completion)
+    - [Suggested: Time synchronization](#suggested-time-synchronization)
+      - [systemd](#systemd-1)
+  - [Configuring the bootloader](#configuring-the-bootloader)
+    - [Alternative 1: systemd-boot](#alternative-1-systemd-boot)
+      - [Emerge](#emerge)
+      - [Installation](#installation)
+    - [Rebooting the system](#rebooting-the-system)
+  - [Finalizing](#finalizing)
+    - [User administration](#user-administration)
+      - [Adding a user for daily use](#adding-a-user-for-daily-use)
+      - [Install sudo and allow wheel group as sudoer](#install-sudo-and-allow-wheel-group-as-sudoer)
+    - [Further system tools](#further-system-tools)
+      - [Install fastfetch](#install-fastfetch)
+      - [Install git](#install-git)
+      - [Install neovim](#install-neovim)
+    - [Further developer tools](#further-developer-tools)
+      - [Install golang](#install-golang)
+
+---
+
+## Boot Live USB
 
 1. Boot from the Gentoo live USB (hold `Option` key during startup).
 2. Connect to the internet (use USB Ethernet adapter or follow [Gentoo WiFi docs](https://wiki.gentoo.org/wiki/Wifi)).
@@ -26,11 +96,13 @@ sudo su -
 
 ---
 
-## 1. Partitioning the disk with GPT for UEFI
+## Preparing the disks
 
-- References:
-  - [Gentoo Handbook:AMD64 > Installation > Disks](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Disks#Partitioning_the_disk_with_GPT_for_UEFI)
-  - [./usr/local/bin/01-partitioning-the-disk-with-gpt-for-uefi.sh](./usr/local/bin/01-partitioning-the-disk-with-gpt-for-uefi.sh)
+- Reference: [Gentoo Handbook:AMD64 > Installation > Disks](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Disks)
+
+### Partitioning the disk with GPT for UEFI
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Disks # Partitioning the disk with GPT for UEFI](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Disks#Partitioning_the_disk_with_GPT_for_UEFI)
 
 ```bash
 # Identify target drive (e.g., /dev/sda), confirm with `lsblk`
@@ -57,22 +129,33 @@ fdisk ${DRIVE}
 # Press `n` to create a new partition
 # Press `2` for the second partition
 # Press `Enter` to accept the default first sector
-# Press `+4G` for the size of the swap partition (Size of your RAM)
+# Press `+8G` for the size of the swap partition (RAM size * 2)
+# Press `Y` to confirm removing the existing partition
 # Press `t` to change the partition type
 # Press `2` to select the swap partition
 # Press `19` to set the partition type to Linux swap partition
 
 # Creating the root partition
+
 # Press `n` to create a new partition
 # Press `3` for the third partition
 # Press `Enter` to accept the default first sector
 # Press `Enter` to accept the default last sector (use the rest of the disk)
+# Press `Y` to confirm removing the existing partition
 # Press `t` to change the partition type
 # Press `3` to select the root partition
 # Press `23` to set the partition type to Linux filesystem (Linux Root (x86-64)
 
 # Press `p` to print the partition table again to verify
 # Press `w` to write the changes and exit fdisk
+```
+
+### Creating file systems
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Disks # Creating file systems](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Disks#Creating_file_systems)
+
+```bash
+DRIVE=/dev/sda
 
 # Format partitions
 mkfs.vfat -F 32 ${DRIVE}1
@@ -83,13 +166,9 @@ mkfs.ext4 ${DRIVE}3
 swapon ${DRIVE}2
 ```
 
----
+### Mounting the root partition
 
-## 2. Mounting the root partition
-
-- References:
-  - [Gentoo Handbook:AMD64 > Installation > Disks](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Disks#Mounting_the_root_partition)
-  - [./usr/local/bin/02-mounting-the-root-partition.sh](./usr/local/bin/02-mounting-the-root-partition.sh)
+- Reference: [Gentoo Handbook:AMD64 > Installation > Disks # Mounting the root partition](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Disks#Mounting_the_root_partition)
 
 ```bash
 mount /dev/sda3 /mnt/gentoo
@@ -98,65 +177,69 @@ mkdir --parents /mnt/gentoo/efi
 
 ---
 
-## 3. Installing a stage file
+## Installing the Gentoo installation files
 
-- References:
-  - [Gentoo Handbook:AMD64 > Installation > Stage](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Stage#Installing_a_stage_file)
-  - [./usr/local/bin/03-installing-a-stage-file.sh](./usr/local/bin/03-installing-a-stage-file.sh)
+- Reference: [Gentoo Handbook:AMD64 > Installation > Stage](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Stage)
+
+### Mounting the USB drive
 
 ```bash
 mkdir --parents /mnt/usb
 # Replace `sdb1` with your USB device
 mount /dev/sdb1 /mnt/usb
+```
 
+### Installing a stage file
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Stage # Installing a stage file](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Stage#Installing_a_stage_file)
+
+```bash
 # Extract stage3 archive
 tar xpvf /mnt/usb/stage3/stage3-*.tar.xz --xattrs-include='*.*' --numeric-owner -C /mnt/gentoo
 
 # tar options:
-# `x`` extract, instructs tar to extract the contents of the archive.
-# `p`` preserve permissions.
-# `v`` verbose output.
-# `f`` file, provides tar with the name of the input archive.
-# `--xattrs-include='*.*'`` Preserves extended attributes in all namespaces stored in the archive.
-# `--numeric-owner`` Ensure that the user and group IDs of files being extracted from the tarball remain the same as Gentoo's release engineering team intended (even if adventurous users are not using official Gentoo live environments for the installation process).
-# `-C /mnt/gentoo`` Extract files to the root partition regardless of the current directory.
+# `x` extract, instructs tar to extract the contents of the archive.
+# `p` preserve permissions.
+# `v` verbose output.
+# `f` file, provides tar with the name of the input archive.
+# `--xattrs-include='*.*'` Preserves extended attributes in all namespaces stored in the archive.
+# `--numeric-owner` Ensure that the user and group IDs of files being extracted from the tarball remain the same as Gentoo's release engineering team intended (even if adventurous users are not using official Gentoo live environments for the installation process).
+# `-C /mnt/gentoo` Extract files to the root partition regardless of the current directory.
 ```
 
----
+### Configuring compile options
 
-## 4. Configuring compile options
+- Reference: [Gentoo Handbook:AMD64 > Installation > Stage # Configuring compile options](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Stage#Configuring_compile_options)
 
-- References:
-  - [Gentoo Handbook:AMD64 > Installation > Stage](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Stage#Configuring_compile_options)
-  - [./usr/local/bin/04-configuring-compile-options.sh](./usr/local/bin/04-configuring-compile-options.sh)
-
-Run `nano /mnt/gentoo/etc/portage/make.conf`:
+Run `nano /mnt/gentoo/etc/portage/make.conf` and set the following options:
 
 ```bash
-COMMON_FLAGS="-march=haswell -O2 -pipe"
-MAKEOPTS="-j3"
+COMMON_FLAGS="-march=native -O2 -pipe"
+MAKEOPTS="-j4"
 ACCEPT_LICENSE="*"
 ```
 
 ---
 
-## 5. Copy DNS info
+## Installing the Gentoo base system
 
-- References:
-  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Copy_DNS_info)
-  - [./usr/local/bin/05-copy-dns-info.sh](./usr/local/bin/05-copy-dns-info.sh)
+- Reference: [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base)
+
+### Chrooting
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Base # Chrooting](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Chrooting)
+
+#### Copy DNS info
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Base # Copy DNS info](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Copy_DNS_info)
 
 ```bash
 cp --dereference /etc/resolv.conf /mnt/gentoo/etc/
 ```
 
----
+#### Mounting the necessary filesystems
 
-## 6. Mounting the necessary filesystems
-
-- References:
-  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Mounting_the_necessary_filesystems)
-  - [./usr/local/bin/06-mounting-the-necessary-filesystems.sh](./usr/local/bin/06-mounting-the-necessary-filesystems.sh)
+- Reference: [Gentoo Handbook:AMD64 > Installation > Base # Mounting the necessary filesystems](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Mounting_the_necessary_filesystems)
 
 ```bash
 mount --types proc /proc /mnt/gentoo/proc
@@ -168,13 +251,9 @@ mount --bind /run /mnt/gentoo/run
 mount --make-slave /mnt/gentoo/run
 ```
 
----
+#### Entering the new environment
 
-## 7. Entering the new environment
-
-- References:
-  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Entering_the_new_environment)
-  - [./usr/local/bin/07-entering-the-new-environment.sh](./usr/local/bin/07-entering-the-new-environment.sh)
+- Reference: [Gentoo Handbook:AMD64 > Installation > Base # Entering the new environment](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Entering_the_new_environment)
 
 ```bash
 chroot /mnt/gentoo /bin/bash
@@ -182,80 +261,169 @@ source /etc/profile
 export PS1="(chroot) $PS1"
 ```
 
----
+#### Preparing for a bootloader
 
-## 8. Preparing for a bootloader
+- Reference: [Gentoo Handbook:AMD64 > Installation > Base # Preparing for a bootloader](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Preparing_for_a_bootloader)
 
-- References:
-  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#UEFI_systems)
-  - [./usr/local/bin/08-preparing-for-a-bootloader.sh](./usr/local/bin/08-preparing-for-a-bootloader.sh)
+> **⚠️ Note:**
+> We mount `/dev/sda1` to `/efi` (not `/boot/efi`) because `installkernel` with the `systemd-boot` USE flag expects to copy the kernel and initramfs directly to `/efi/EFI/Linux/`.
+> This ensures compatibility with systemd-boot's unified kernel layout. Do not mount `/dev/sda1` to `/boot/efi` in this setup.
 
 ```bash
 mount /dev/sda1 /efi
 ```
 
-## 9. Configuring Portage
+### Configuring Portage
 
-- References:
-  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Installing_a_Gentoo_ebuild_repository_snapshot_from_the_web)
-  - [./usr/local/bin/09-configuring-portage.sh](./usr/local/bin/09-configuring-portage.sh)
+- Reference: [Gentoo Handbook:AMD64 > Installation > Base # Configuring Portage](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Configuring_Portage)
+
+#### Installing a Gentoo ebuild repository snapshot from the web
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Base # Installing a Gentoo ebuild repository snapshot from the web](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Installing_a_Gentoo_ebuild_repository_snapshot_from_the_web)
 
 ```bash
 emerge-webrsync
 ```
 
-## 10. Choosing the right profile
+#### Choosing the right profile
 
-- References:
-  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Choosing_the_right_profile)
-  - [./usr/local/bin/10-choosing-the-right-profile.sh](./usr/local/bin/10-choosing-the-right-profile.sh)
+- Reference: [Gentoo Handbook:AMD64 > Installation > Base # Choosing the right profile](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Choosing_the_right_profile)
 
 ```bash
 eselect profile list
-eselect profile set 22
-emerge --ask --verbose --update --deep --changed-use @world
-emerge --ask --pretend --depclean
+eselect profile set default/linux/amd64/23.0/systemd
+```
+
+#### Optional: Configuring the USE variable
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Base # Optional: Configuring the USE variable](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Optional:_Configuring_the_USE_variable)
+
+Check your current active USE settings:
+
+```bash
+emerge --info | grep ^USE
+```
+
+Update your USE flags by running `nano /etc/portage/make.conf`:
+
+```bash
+# This is a highly opinionated example which you could and should tailor to your own needs
+USE="
+  bluetooth
+  dist-kernel
+  hyprland
+  networkmanager
+  pipewire
+  systemd
+  systemd-boot
+  usb
+  waybar
+  wayland
+  wifi
+  wpa_supplicant
+  X
+  -alsa
+  -gtk
+  -kde
+  -plasma
+  -pulseaudio
+"
+```
+
+Update your World set after setting your USE flags by running:
+
+```bash
+# Either: A)
+# Rebuilds packages if any USE flag has changed, enabled or disabled, even if it
+# doesn’t affect the build (e.g., new USE flags added by ebuild updates).
+# Longform: emerge --ask --verbose --update --deep --newuse @world
+emerge -avuDN @world
+
+# Or: B)
+# Rebuilds packages only if the effective USE flags changed, meaning the actual
+# combination of enabled flags differs from the current install.
+# Longform: emerge --ask --verbose --update --deep --changed-use @world
+emerge -avuDC @world
+
+# Clean up afterwards
 emerge --ask --depclean
 ```
 
-## 11. Configuring timezone and locales
+### Timezone
 
-- References:
-  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Timezone)
-  - [Gentoo Handbook:AMD64 > Installation > Base](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Configure_locales)
-  - [./usr/local/bin/11-configuring-timezone-and-locales.sh](./usr/local/bin/11-configuring-timezone-and-locales.sh)
+- Reference: [Gentoo Handbook:AMD64 > Installation > Base # Timezone](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Timezone)
 
 ```bash
-# Timezone & locale
 ln -sf ../usr/share/zoneinfo/Europe/Berlin /etc/localtime
-cat << EOF > /etc/locale.gen
+```
+
+### Configure locales
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Base # Configure locales](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Configure_locales)
+
+#### Locale generation
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Base # Locale generation](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Locale_generation)
+
+Run `nano /etc/locale.gen` and set the following options:
+
+```bash
 en_US ISO-8859-1
 en_US.UTF-8 UTF-8
 de_DE ISO-8859-1
-de_DE.UTF-8 UTF-8
-EOF
+de_DE@euro ISO-8859-15
+```
+
+Save the file and run the locale generation:
+
+```bash
 locale-gen
+```
+
+#### Locale selection
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Base # Locale selection](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Locale_selection)
+
+```bash
 eselect locale list
-# Select en_US.UTF-8
-eselect locale set 9
+eselect locale set en_US.UTF-8
 env-update && source /etc/profile && export PS1="(chroot) ${PS1}"
 ```
 
-## 12. Configuring the Linux kernel
+---
 
-- References:
-  - [Gentoo Handbook:AMD64 > Installation > Kernel](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#Suggested:_Linux_Firmware)
-  - [Gentoo Handbook:AMD64 > Installation > Kernel](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#systemd-boot)
-  - [Gentoo Handbook:AMD64 > Installation > Kernel](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#Initramfs)
-  - [./usr/local/bin/12-configuring-the-linux-kernel.sh](./usr/local/bin/12-configuring-the-linux-kernel.sh)
+## Configuring the Linux kernel
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Kernel](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel)
+
+### Optional: Installing firmware and/or microcode
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Kernel # Optional: Installing firmware and/or microcode](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#Optional:_Installing_firmware_and.2For_microcode)
+
+#### Firmware
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Kernel # Firmware](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#Firmware)
 
 ```bash
-# Install linux-firmware
-emerge --ask sys-kernel/linux-firmware
+emerge --ask sys-kernel/linux-firmware sys-firmware/sof-firmware
+```
 
-# Configure systemd-boot
+### sys-kernel/installkernel
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Kernel # sys-kernel/installkernel](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#sys-kernel.2Finstallkernel)
+
+#### Bootloader
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Kernel # Bootloader](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#Bootloader)
+
+##### systemd-boot
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Kernel # systemd-boot](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#systemd-boot)
+
+```bash
+# Configure systemd-boot & bash-completion
 cat << EOF > /etc/portage/package.use/systemd
-sys-apps/systemd boot
+sys-apps/systemd boot bash-completion
 sys-kernel/installkernel systemd-boot
 EOF
 
@@ -266,116 +434,110 @@ EOF
 
 # Configure kernel command line
 cat << EOF > /etc/kernel/cmdline
-quiet splash
+splash
 EOF
 
 # Install systemd and installkernel
 emerge --ask sys-apps/systemd sys-kernel/installkernel
 ```
 
----
+### Kernel configuration and compilation
 
-## 13. Install Kernel
+- Reference: [Gentoo Handbook:AMD64 > Installation > Kernel # Kernel configuration and compilation](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#Kernel_configuration_and_compilation)
 
-- References:
-  - [Gentoo Handbook:AMD64 > Installation > Kernel](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#Installing_a_distribution_kernel)
-  - [./usr/local/bin/13-install-kernel.sh](./usr/local/bin/13-install-kernel.sh)
+#### Distribution kernels
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Kernel # Distribution kernels](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#Distribution_kernels)
+
+##### Run systemd initial setup
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > System # systemd ](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/System#systemd_2)
+
+Before emerging the kernel it is advised to run the initial systemd setup:
 
 ```bash
-# Install Gentoo distribution kernel
+systemd-machine-id-setup
+systemd-firstboot --prompt
+# Enter `us` as system keymap name
+systemctl preset-all --preset-mode=enable-only
+```
+
+##### Installing a distribution kernel
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Kernel # Installing a distribution kernel](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#Installing_a_distribution_kernel)
+
+```bash
 emerge --ask sys-kernel/gentoo-kernel
+```
 
-# Clean up
+##### Upgrading and cleaning up
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Kernel # Upgrading and cleaning up](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Kernel#Upgrading_and_cleaning_up)
+
+```bash
 emerge --depclean
-
-# Set `dist-kernel` USE-flag
-nano /etc/portage/make.conf
-
-# Add `USE="dist-kernel"` line
-
-# Manually rebuild the initramfs
-emerge --ask @module-rebuild
-emerge --config sys-kernel/gentoo-kernel
 ```
 
 ---
 
-## 14. Configure GRUB
+## Configuring the system
 
-See: [./usr/local/bin/14-configure-grub.sh](./usr/local/bin/14-configure-grub.sh)
+- Reference: [Gentoo Handbook:AMD64 > Installation > System # Configuring the system](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/System)
+
+### Filesystem information
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > System # Filesystem information](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/System#Filesystem_information)
+
+#### Partition labels and UUIDs
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > System # Partition labels and UUIDs](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/System#Partition_labels_and_UUIDs)
+
+Read the UUIDs of the partitions by running:
 
 ```bash
-emerge --ask sys-boot/grub:2
+blkid
+```
 
-# Get root partition UUID
+#### Creating the fstab file
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > System # Creating the fstab file](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/System#Creating_the_fstab_file)
+
+##### UEFI systems
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > System # UEFI systems](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/System#UEFI_systems)
+
+Create the `/etc/fstab` file using UUIDs by running:
+
+```bash
+EFI_UUID=$(blkid -s UUID -o value /dev/sda1)
 ROOT_UUID=$(blkid -s UUID -o value /dev/sda3)
-
-# Configure GRUB
-cat << EOF > /etc/default/grub
-GRUB_DEFAULT=0
-GRUB_TIMEOUT=5
-GRUB_DISTRIBUTOR="Gentoo"
-GRUB_CMDLINE_LINUX="root=UUID=$ROOT_UUID initrd=/boot/initramfs-$(uname -r)"
-GRUB_DISABLE_RECOVERY=true
+cat << EOF > /etc/fstab
+UUID=$EFI_UUID    /efi    vfat    umask=0077        0 2
+/dev/sda2         none    swap    sw                0 0
+UUID=$ROOT_UUID   /       ext4    defaults,noatime  0 1
 EOF
-
-# Install GRUB to EFI
-grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Gentoo
-grub-mkconfig -o /boot/grub/grub.cfg
 ```
 
----
+### Networking Information
 
-## 15. Set Systemd Profile
+- Reference: [Gentoo Handbook:AMD64 > Installation > System # Networking Information](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/System#Networking_information)
 
-See: [./usr/local/bin/15-set-systemd-profile.sh](./usr/local/bin/15-set-systemd-profile.sh)
+#### Hostname
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > System # Hostname](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/System#Hostname)
+
 
 ```bash
-# Choose systemd profile (e.g., 22)
-eselect profile list
-eselect profile set 22
-
-cat << EOF > /etc/portage/package.use/systemd
-sys-apps/systemd bash-completion
-EOF
-emerge --ask sys-apps/systemd sys-kernel/linux-firmware app-shells/bash-completion
-
-eselect bashcomp enable systemctl
-eselect bashcomp enable networkctl
-eselect bashcomp enable journalctl
-
-cat << EOF > /etc/profile.d/completion.sh
-# enable bash completion if available
-if [ -f /etc/bash_completion ]; then
-  source /etc/bash_completion
-fi
-
-# Gentoo Portage completions
-if [ -f /usr/share/portage/bashrc ]; then
-  source /usr/share/portage/bashrc
-fi
-EOF
-
-emerge --ask --verbose --update --deep --newuse @world
+echo gentoo-btw > /etc/hostname
 ```
 
----
+#### Network
 
-## 16. Configure Systemd Services
+- Reference: [Gentoo Handbook:AMD64 > Installation > System # Network](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/System#Network)
 
-See: [./usr/local/bin/16-configure-systemd-services.sh](./usr/local/bin/16-configure-systemd-services.sh)
+Instead of using DHCP, we are going to configure a static ip for our wired ethernet connection.
 
 ```bash
-# Install WiFi drivers
-#mkdir -p /etc/portage/package.accept_keywords
-#echo "net-wireless/broadcom-sta ~amd64" >> /etc/portage/package.accept_keywords/broadcom-sta
-#emerge --ask net-wireless/broadcom-sta
-# Build kernel module
-#emerge --config broadcom-sta
-
-# Enable network & essentials
-#emerge --ask net-wireless/wpa_supplicant
-
 # Configure network
 cat << EOF > /etc/systemd/network/20-wired-static.network
 [Match]
@@ -395,34 +557,50 @@ IPv6AcceptRA=no
 LinkLocalAddressing=no
 EOF
 
-#cat << EOF > /etc/systemd/network/25-wireless.network
-#[Match]
-#Name=wlan0
-
-#[Network]
-#DHCP=yes
-
-#[DHCP]
-#UseDNS=yes
-#EOF
-
-# Configure WiFi
-#mkdir -p /etc/wpa_supplicant
-#cat << EOF > /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
-#ctrl_interface=/run/wpa_supplicant
-#ctrl_interface_group=wheel
-#update_config=1
-
-#network={
-#    ssid="YourNetworkSSID"
-#    psk="yourpassword"
-#}
-#EOF
-#chmod 600 /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
-
 systemctl enable systemd-networkd systemd-resolved
-#systemctl enable wpa_supplicant@wlan0.service
+```
 
+#### The hosts file
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > System # The hosts file](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/System#The_hosts_file)
+
+Run `nano /etc/hosts` and add your hostname
+
+```bash
+127.0.0.1   gentoo-btw localhost
+::1         gentoo-btw localhost
+```
+
+### System information
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > System # System information](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/System#System_information)
+
+#### Root password
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > System # Root password](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/System#Root_password)
+
+```bash
+passwd
+```
+
+---
+
+## Installing system tools
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Tools](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Tools)
+
+### Optional: Remote shell access
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Tools # Optional: Remote shell access](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Tools#Optional:_Remote_shell_access)
+
+#### systemd
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Tools # systemd](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Tools#systemd_3)
+
+> ⚠️ **Security Notice**
+> The following setting temporarily allows root login via SSH using a password:
+
+```bash
 # Configure SSH
 cat << EOF > /etc/ssh/sshd_config
 PermitRootLogin yes
@@ -430,14 +608,15 @@ EOF
 
 # Enable SSH
 systemctl enable sshd
+systemctl enable getty@tty1.service
 ```
 
-- On your Client Machine: Generate (if necessary) SSH keys
+- On your Client Machine: Generate (if necessary) SSH keys and copy over public key
 ```bash
 ssh-keygen -t ed25519
 ssh-copy-id -i ~/.ssh/id_ed25519.pub root@<your_gentoo_ip>
 ```
-- On your Gentoo Machine: Reconfigure SSH to reject passwod logins and only accept keys
+- On your Gentoo Machine: Reconfigure SSH to reject password logins and only accept keys
 ```bash
 cat << EOF > /etc/ssh/sshd_config
 PermitRootLogin prohibit-password
@@ -446,116 +625,156 @@ EOF
 systemctl restart sshd
 ```
 
+### Optional: Shell completion
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Tools # Optional: Shell completion](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Tools#Optional:_Shell_completion)
+
+```bash
+cat << EOF > /etc/profile.d/completion.sh
+# enable bash completion if available
+if [ -f /etc/bash_completion ]; then
+  source /etc/bash_completion
+fi
+
+# Gentoo Portage completions
+if [ -f /usr/share/portage/bashrc ]; then
+  source /usr/share/portage/bashrc
+fi
+EOF
+```
+
+Install the bash completion tools:
+
+```bash
+emerge --ask app-shells/bash-completion
+```
+
+### Suggested: Time synchronization
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Tools # Time synchronization](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Tools#Suggested:_Time_synchronization)
+
+#### systemd
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Tools # systemd](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Tools#systemd_4)
+
+Use the default installed SNTP client `systemd-timesyncd`:
+
+```bash
+systemctl enable systemd-timesyncd.service
+```
+
 ---
 
-## 17. Finalize and Reboot
+## Configuring the bootloader
 
-See: [./usr/local/bin/17-finalize-and-reboot.sh](./usr/local/bin/17-finalize-and-reboot.sh)
+- Reference: [Gentoo Handbook:AMD64 > Installation > Bootloader](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Bootloader)
+
+### Alternative 1: systemd-boot
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Bootloader # Alternative 1: systemd-boot](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Bootloader#Alternative_1:_systemd-boot)
+
+#### Emerge
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Bootloader # Emerge](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Bootloader#Emerge_2)
+
+```bash
+cat << EOF > /etc/portage/package.use/systemd-boot
+sys-apps/systemd boot
+sys-apps/systemd-utils boot
+EOF
+```
+
+#### Installation
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Bootloader # Installation](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Bootloader#Installation)
+
+- Install the systemd-boot loader to the EFI System partition:
+```bash
+bootctl install
+```
+
+- Verify that bootable entries exist:
+```bash
+bootctl list
+```
+
+### Rebooting the system
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Bootloader # Rebooting the system](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Bootloader#Rebooting_the_system)
 
 ```bash
 exit
-cd /
+cd
+umount -l /mnt/gentoo/dev{/shm,/pts,}
 umount -R /mnt/gentoo
-swapoff -a
 reboot
 ```
 
-## Post-Installation Notes
+---
 
-1. **WiFi Firmware**: If WiFi doesn’t work, load the Broadcom module:
+## Finalizing
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Finalizing](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Finalizing)
+
+### User administration
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Finalizing # User administration](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Finalizing#User_administration)
+
+#### Adding a user for daily use
+
+- Reference: [Gentoo Handbook:AMD64 > Installation > Finalizing # Adding a user for daily use](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Finalizing#Adding_a_user_for_daily_use)
+
 ```bash
-echo "brcmfmac" > /etc/modules-load.d/brcmfmac.conf
+# Login as `root` first (only `root` can create users)
+useradd -m -G users,wheel,audio,usb,video -s /bin/bash dope
+passwd dope
 ```
-2. **Fallback Bootloader**: If GRUB isn’t detected, install `rEFInd`:
+
+#### Install sudo and allow wheel group as sudoer
+
 ```bash
-emerge --ask sys-boot/refind
-refind-install
+emerge --ask app-admin/sudo
+
+visudo
+
+# Uncomment the wheel line
+%wheel ALL=(ALL:ALL) ALL
 ```
-3. **Trim Support for SSD**:
-- Add `discard` to `/etc/fstab` for the root partition, or enable the timer:
+
+### Further system tools
+
+#### Install fastfetch
+
+- Reference: [Gentoo Wiki > Fastfetch](https://wiki.gentoo.org/wiki/Fastfetch)
+
 ```bash
-systemctl enable fstrim.timer
+emerge --ask app-misc/fastfetch
+```
+
+#### Install git
+
+- Reference: [Gentoo Wiki > Git](https://wiki.gentoo.org/wiki/Git)
+
+```bash
+emerge --ask dev-vcs/git
+```
+
+#### Install neovim
+
+- Reference: [Gentoo Wiki > Neovim](https://wiki.gentoo.org/wiki/Neovim)
+
+```bash
+emerge --ask app-editors/neovim
+```
+
+### Further developer tools
+
+#### Install golang
+
+- Reference: [Gentoo Wiki > Go](https://wiki.gentoo.org/wiki/Go)
+
+```bash
+emerge --ask dev-lang/go
 ```
 
 ---
-
-**Done!** Your MacBook Air should now boot into Gentoo with full hardware support.
-
----
-
-## Day-to-Day Commands Cheatsheet
-
-### **Portage (Package Management)**
-| Command | Description |
-|---------|-------------|
-| `emerge --sync` | Update the Portage tree (sync package repositories). |
-| `emerge -auD @world` | Update all installed packages (`-a`: ask, `-u`: update, `-D`: deep, `--newuse`). |
-| `emerge -av <package>` | Install a package (e.g., `emerge -av firefox`). |
-| `emerge -avC <package>` | Uninstall a package and its dependencies. |
-| `emerge --depclean` | Remove orphaned dependencies. |
-| `emerge --info` | Show current USE flags, CFLAGS, and system configuration. |
-| `eix <keyword>` | Search for packages (install `eix` first: `emerge -av eix`). |
-| `qlist -IRv` | List all installed packages. |
-| `equery files <package>` | List files installed by a package (requires `gentoolkit`: `emerge -av gentoolkit`). |
-| `emerge --pretend --update --deep --newuse @world` | Simulate a system update without making changes. |
-
----
-
-### **USE Flags and Configuration**
-| Command | Description |
-|---------|-------------|
-| `nano /etc/portage/make.conf` | Edit global USE flags and compiler settings. |
-| `nano /etc/portage/package.use/<file>` | Add per-package USE flags. |
-| `emerge -av --autounmask-write <package>` | Resolve USE flag conflicts (run `etc-update` afterward). |
-| `etc-update` | Apply changes to configuration files after updates. |
-| `dispatch-conf` | Review and merge `.conf` file changes interactively. |
-
----
-
-### **Systemd (Service Management)**
-| Command | Description |
-|---------|-------------|
-| `systemctl start <service>` | Start a service (e.g., `systemctl start sshd`). |
-| `systemctl stop <service>` | Stop a service. |
-| `systemctl restart <service>` | Restart a service. |
-| `systemctl enable <service>` | Enable a service at boot. |
-| `systemctl disable <service>` | Disable a service at boot. |
-| `systemctl status <service>` | Check if a service is running. |
-| `journalctl -u <service>` | View logs for a service (e.g., `journalctl -u systemd-networkd`). |
-| `journalctl -f` | Follow live logs. |
-| `systemctl list-unit-files` | List all services and their enablement status. |
-| `systemctl reboot` | Reboot the system. |
-| `systemctl poweroff` | Shut down the system. |
-
----
-
-### **Kernel and Hardware**
-| Command | Description |
-|---------|-------------|
-| `genkernel --menuconfig all` | Rebuild the kernel and initramfs. |
-| `dracut --regenerate-all --force` | Rebuild initramfs (if not using `genkernel`). |
-| `uname -r` | Check the current kernel version. |
-| `lspci` | List PCI devices. |
-| `lsusb` | List USB devices. |
-| `dmesg` | View kernel ring buffer (hardware/driver logs). |
-
----
-
-### **Miscellaneous**
-| Command | Description |
-|---------|-------------|
-| `eselect news read` | Read Gentoo news updates. |
-| `eselect locale list` | List available locales. |
-| `rc-update show` | List OpenRC services (if not using systemd). |
-| `find /etc -name '._cfg*'` | Find unmerged configuration files after updates. |
-| `smartctl -a /dev/sda` | Check SSD/HDD health (requires `smartmontools`). |
-
----
-
-### **Troubleshooting**
-| Command | Description |
-|---------|-------------|
-| `systemctl rescue` | Boot into rescue mode (single-user). |
-| `systemctl isolate multi-user.target` | Switch to CLI-only mode. |
-| `emerge -av --keep-going @world` | Continue updates even if some packages fail. |
-| `emerge -e @world` | Deep-rebuild the entire system (use with caution!). |
