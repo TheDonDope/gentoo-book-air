@@ -1,9 +1,16 @@
 # Gentoo Linux Installation Guide for Mid 2013 MacBook Air
 
-This guide provides a streamlined installation process for Gentoo Linux on a mid-2013 MacBook Air, using the [Gentoo Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64). It is tailored for users who are familiar with the command line and Linux installations.
-This guide assumes you have a live USB with the Gentoo installation media and a Gentoo stage3 archive on it. The installation will be done in a `chroot` environment.
+This guide provides a streamlined installation process for Gentoo Linux on a
+mid-2013 MacBook Air, using the
+[Gentoo Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64).
+It is tailored for users who are familiar with the command line and Linux
+installations.
+This guide assumes you have a live USB with the Gentoo installation media and
+a Gentoo stage3 archive on it. The installation will be done in a `chroot`
+environment.
 
 > **Assumptions:**
+>
 > - You have a Gentoo stage3 archive at `/stage3/stage3-*.tar.xz` on your live USB.
 > - You’ve backed up all data and are ready for a full disk wipe.
 
@@ -90,6 +97,7 @@ USB/
 1. Boot from the Gentoo live USB (hold `Option` key during startup).
 2. Connect to the internet (use USB Ethernet adapter or follow [Gentoo WiFi docs](https://wiki.gentoo.org/wiki/Wifi)).
 3. Open a terminal and switch to root:
+
 ```bash
 sudo su -
 ```
@@ -266,8 +274,11 @@ export PS1="(chroot) $PS1"
 - Reference: [Gentoo Handbook:AMD64 > Installation > Base # Preparing for a bootloader](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Base#Preparing_for_a_bootloader)
 
 > **⚠️ Note:**
-> We mount `/dev/sda1` to `/efi` (not `/boot/efi`) because `installkernel` with the `systemd-boot` USE flag expects to copy the kernel and initramfs directly to `/efi/EFI/Linux/`.
-> This ensures compatibility with systemd-boot's unified kernel layout. Do not mount `/dev/sda1` to `/boot/efi` in this setup.
+> We mount `/dev/sda1` to `/efi` (not `/boot/efi`) because `installkernel` with
+> the `systemd-boot` USE flag expects to copy the kernel and initramfs directly
+> to `/efi/EFI/Linux/`.
+> This ensures compatibility with systemd-boot's unified kernel layout.
+> Do not mount `/dev/sda1` to `/boot/efi` in this setup.
 
 ```bash
 mount /dev/sda1 /efi
@@ -307,26 +318,10 @@ emerge --info | grep ^USE
 Update your USE flags by running `nano /etc/portage/make.conf`:
 
 ```bash
-# This is a highly opinionated example which you could and should tailor to your own needs
+# This is a highly opinionated example which you could and should tailor to 
+# your own needs.
 USE="
-  bluetooth
   dist-kernel
-  hyprland
-  networkmanager
-  pipewire
-  systemd
-  systemd-boot
-  usb
-  waybar
-  wayland
-  wifi
-  wpa_supplicant
-  X
-  -alsa
-  -gtk
-  -kde
-  -plasma
-  -pulseaudio
 "
 ```
 
@@ -526,7 +521,6 @@ EOF
 
 - Reference: [Gentoo Handbook:AMD64 > Installation > System # Hostname](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/System#Hostname)
 
-
 ```bash
 echo gentoo-btw > /etc/hostname
 ```
@@ -535,7 +529,8 @@ echo gentoo-btw > /etc/hostname
 
 - Reference: [Gentoo Handbook:AMD64 > Installation > System # Network](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/System#Network)
 
-Instead of using DHCP, we are going to configure a static ip for our wired ethernet connection.
+Instead of using DHCP, we are going to configure a static ip for our wired
+ethernet connection.
 
 ```bash
 # Configure network
@@ -611,12 +606,17 @@ systemctl enable sshd
 systemctl enable getty@tty1.service
 ```
 
-- On your Client Machine: Generate (if necessary) SSH keys and copy over public key
+- On your Client Machine: Generate (if necessary) SSH keys and copy over
+public key
+
 ```bash
 ssh-keygen -t ed25519
 ssh-copy-id -i ~/.ssh/id_ed25519.pub root@<your_gentoo_ip>
 ```
-- On your Gentoo Machine: Reconfigure SSH to reject password logins and only accept keys
+
+- On your Gentoo Machine: Reconfigure SSH to reject password logins and only
+accept keys
+
 ```bash
 cat << EOF > /etc/ssh/sshd_config
 PermitRootLogin prohibit-password
@@ -689,11 +689,13 @@ EOF
 - Reference: [Gentoo Handbook:AMD64 > Installation > Bootloader # Installation](https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Bootloader#Installation)
 
 - Install the systemd-boot loader to the EFI System partition:
+
 ```bash
 bootctl install
 ```
 
 - Verify that bootable entries exist:
+
 ```bash
 bootctl list
 ```
